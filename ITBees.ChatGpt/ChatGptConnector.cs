@@ -2,7 +2,7 @@
 using ITBees.Interfaces.Platforms;
 using Newtonsoft.Json;
 
-public class ChatGptConnector
+public class ChatGptConnector : IChatGptConnector
 {
     private readonly HttpClient _httpClient;
     private readonly IPlatformSettingsService _platformSettingsService;
@@ -16,8 +16,7 @@ public class ChatGptConnector
         _apiKey = platformSettingsService.GetSetting("ChatGptApiKey");
         if (_apiKey == null || string.IsNullOrEmpty(_apiKey))
         {
-            throw new Exception(
-                "ChatGptApiKey key and value must be set in config.json for application to work");
+            throw new Exception("ChatGptApiKey key and value must be set in config.json for the application to work");
         }
     }
 
@@ -27,7 +26,7 @@ public class ChatGptConnector
         {
             var requestData = new
             {
-                model = "gpt-4o",
+                model = "gpt-4",
                 messages = new[]
                 {
                     new { role = "user", content = question }
@@ -46,19 +45,31 @@ public class ChatGptConnector
             {
                 var responseString = await response.Content.ReadAsStringAsync();
 
-                dynamic responseJson = JsonConvert.DeserializeObject(responseString);
+                var responseJson = JsonConvert.DeserializeObject<ChatGptResponse>(responseString);
                 string reply = responseJson.choices[0].message.content;
 
                 return reply;
             }
             else
             {
-                return $"API call failed with status code: {response.StatusCode}";
+                var message = string.Empty;
+                try
+                {
+                    var responseString = await response.Content.ReadAsStringAsync();
+                    message = responseString;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    throw;
+                }
+                
+                return $"API call failed with status code: {response.StatusCode} \r\n{message}";
             }
         }
         catch (Exception ex)
         {
-            throw new ArgumentException($"API call failed with status code: {ex.Message}");
+            throw new ArgumentException($"API call failed: {ex.Message}");
         }
     }
 }
