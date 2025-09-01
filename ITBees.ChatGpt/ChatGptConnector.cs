@@ -2,6 +2,8 @@
 using ITBees.Interfaces.Platforms;
 using Newtonsoft.Json;
 
+namespace ITBees.ChatGpt;
+
 public class ChatGptConnector : IChatGptConnector
 {
     private readonly HttpClient _httpClient;
@@ -14,19 +16,20 @@ public class ChatGptConnector : IChatGptConnector
         _httpClient = httpClient;
         _platformSettingsService = platformSettingsService;
         _apiKey = platformSettingsService.GetSetting("ChatGptApiKey");
-        if (_apiKey == null || string.IsNullOrEmpty(_apiKey))
+        if (string.IsNullOrEmpty(_apiKey))
         {
             throw new Exception("ChatGptApiKey key and value must be set in config.json for the application to work");
         }
     }
 
-    public async Task<string> AskChatGptAsync(string question)
+    // Added optional parameter for model selection
+    public async Task<string> AskChatGptAsync(string question, ChatGptModel model = ChatGptModel.Gpt4oMini)
     {
         try
         {
             var requestData = new
             {
-                model = "gpt-4",
+                model = model.ToApiString(),
                 messages = new[]
                 {
                     new { role = "user", content = question }
@@ -44,11 +47,14 @@ public class ChatGptConnector : IChatGptConnector
             if (response.IsSuccessStatusCode)
             {
                 var responseString = await response.Content.ReadAsStringAsync();
-
                 var responseJson = JsonConvert.DeserializeObject<ChatGptResponse>(responseString);
-                string reply = responseJson.choices[0].message.content;
 
-                return reply;
+                if (responseJson == null || responseJson.choices == null || responseJson.choices.Length == 0)
+                {
+                    return "Empty response from API.";
+                }
+
+                return responseJson.choices[0].message.content;
             }
             else
             {
@@ -63,7 +69,7 @@ public class ChatGptConnector : IChatGptConnector
                     Console.WriteLine(e);
                     throw;
                 }
-                
+
                 return $"API call failed with status code: {response.StatusCode} \r\n{message}";
             }
         }
