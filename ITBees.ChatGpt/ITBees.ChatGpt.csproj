@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="ITBees.Interfaces" Version="8.0.65" />
-    <PackageReference Include="ITBees.Models" Version="8.0.91" />
+    <PackageReference Include="ITBees.Models" Version="8.0.93" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
