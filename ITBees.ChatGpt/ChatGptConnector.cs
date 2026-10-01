@@ -23,8 +23,12 @@ public class ChatGptConnector : IChatGptConnector
     }
 
     // Added optional parameter for model selection
+    // The returned string is always the model's answer. Every failure (transport error, non-success
+    // status code, unreadable or empty response) is signalled by ChatGptApiException, never by the return value.
     public async Task<string> AskChatGptAsync(string question, ChatGptModel model = ChatGptModel.Gpt4oMini)
     {
+        HttpResponseMessage response;
+        string responseString;
         try
         {
             var requestData = new
@@ -42,40 +46,37 @@ public class ChatGptConnector : IChatGptConnector
             _httpClient.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
 
-            var response = await _httpClient.PostAsync(_apiUrl, content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var responseString = await response.Content.ReadAsStringAsync();
-                var responseJson = JsonConvert.DeserializeObject<ChatGptResponse>(responseString);
-
-                if (responseJson == null || responseJson.choices == null || responseJson.choices.Length == 0)
-                {
-                    return "Empty response from API.";
-                }
-
-                return responseJson.choices[0].message.content;
-            }
-            else
-            {
-                var message = string.Empty;
-                try
-                {
-                    var responseString = await response.Content.ReadAsStringAsync();
-                    message = responseString;
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    throw;
-                }
-
-                return $"API call failed with status code: {response.StatusCode} \r\n{message}";
-            }
+            response = await _httpClient.PostAsync(_apiUrl, content);
+            responseString = await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
         {
-            throw new ArgumentException($"API call failed: {ex.Message}");
+            throw new ChatGptApiException($"API call failed: {ex.Message}", ex);
         }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new ChatGptApiException(
+                $"API call failed with status code: {response.StatusCode} \r\n{responseString}",
+                response.StatusCode, responseString);
+        }
+
+        ChatGptResponse? responseJson;
+        try
+        {
+            responseJson = JsonConvert.DeserializeObject<ChatGptResponse>(responseString);
+        }
+        catch (JsonException ex)
+        {
+            throw new ChatGptApiException($"API call failed: {ex.Message}", ex);
+        }
+
+        var answer = responseJson?.choices?.FirstOrDefault()?.message?.content;
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            throw new ChatGptApiException("Empty response from API.", response.StatusCode, responseString);
+        }
+
+        return answer;
     }
 }
